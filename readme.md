@@ -1,6 +1,6 @@
-# nnU-Net Multiclass
+# nnU-Net Multi-Label
 
-This fork of nnU-Net contains adaptions to allow multi-class training and inference using nnu-Net.
+This fork of nnU-Net contains adaptions to allow multi-label training and inference using nnu-Net.
 
 ## Usage
 
