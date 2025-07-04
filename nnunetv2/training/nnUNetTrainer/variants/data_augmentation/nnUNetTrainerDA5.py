@@ -418,8 +418,8 @@ class nnUNetTrainerDA5(nnUNetTrainer):
         # the following is needed for online evaluation. Fake dice (green line)
         axes = [0] + list(range(2, output.ndim))
 
-        # -- MULTICLASS-ADAPTION --
-        if self.label_manager.has_regions or self.label_manager.multiclass:
+        # -- MULTILABEL-ADAPTION --
+        if self.label_manager.has_regions or self.label_manager.multilabel:
             predicted_segmentation_onehot = (torch.sigmoid(output) > 0.5).long()
         else:
             # no need for softmax
@@ -429,7 +429,7 @@ class nnUNetTrainerDA5(nnUNetTrainer):
             del output_seg
 
         if self.label_manager.has_ignore_label:
-            if not (self.label_manager.has_regions or self.label_manager.multiclass):
+            if not (self.label_manager.has_regions or self.label_manager.multilabel):
                 mask = (target != self.label_manager.ignore_label).float()
                 # CAREFUL that you don't rely on target after this line!
                 target[target == self.label_manager.ignore_label] = 0
@@ -442,7 +442,7 @@ class nnUNetTrainerDA5(nnUNetTrainer):
                 target = target[:, :-1].bool()
         else:
             mask = None
-        # -- MULTICLASS-ADAPTION END --
+        # -- MULTILABEL-ADAPTION END --
 
         tp, fp, fn, _ = get_tp_fp_fn_tn(predicted_segmentation_onehot, target, axes=axes, mask=mask)
 
@@ -450,8 +450,8 @@ class nnUNetTrainerDA5(nnUNetTrainer):
         fp_hard = fp.detach().cpu().numpy()
         fn_hard = fn.detach().cpu().numpy()
 
-        # -- MULTICLASS-ADAPTION --
-        if not (self.label_manager.has_regions or self.label_manager.multiclass):
+        # -- MULTILABEL-ADAPTION --
+        if not (self.label_manager.has_regions or self.label_manager.multilabel):
             # if we train with regions all segmentation heads predict some kind of foreground. In conventional
             # (softmax training) there needs tobe one output for the background. We are not interested in the
             # background Dice
@@ -459,7 +459,7 @@ class nnUNetTrainerDA5(nnUNetTrainer):
             tp_hard = tp_hard[1:]
             fp_hard = fp_hard[1:]
             fn_hard = fn_hard[1:]
-        # -- MULTICLASS-ADAPTION END --
+        # -- MULTILABEL-ADAPTION END --
 
         return {'loss': l.detach().cpu().numpy(), 'tp_hard': tp_hard, 'fp_hard': fp_hard, 'fn_hard': fn_hard}
 

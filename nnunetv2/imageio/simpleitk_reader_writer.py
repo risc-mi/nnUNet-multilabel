@@ -33,9 +33,9 @@ class SimpleITKIO(BaseReaderWriter):
         origins = []
         directions = []
 
-        # -- MULTICLASS-ADAPTION --
+        # -- MULTILABEL-ADAPTION --
         multichannels = []
-        # -- MULTICLASS-ADAPTION END --
+        # -- MULTILABEL-ADAPTION END --
 
         spacings_for_nnunet = []
         for f in image_fnames:
@@ -45,7 +45,7 @@ class SimpleITKIO(BaseReaderWriter):
             directions.append(itk_image.GetDirection())
             npy_image = sitk.GetArrayFromImage(itk_image)
 
-            # -- MULTICLASS-ADAPTION --
+            # -- MULTILABEL-ADAPTION --
             # ITK automatically maps channels as components, we simply check if the numpy and ITK dimensions match
             ndim = itk_image.GetDimension()
             multichannel = itk_image.GetDimension() != npy_image.ndim
@@ -55,7 +55,7 @@ class SimpleITKIO(BaseReaderWriter):
                 npy_image = np.moveaxis(npy_image, -1, 0)
                 ndim = itk_image.GetDimension()
             multichannels.append(multichannel)
-            # -- MULTICLASS-ADAPTION END --
+            # -- MULTILABEL-ADAPTION END --
 
             if ndim == 2:
                 # 2d
@@ -63,7 +63,7 @@ class SimpleITKIO(BaseReaderWriter):
                 max_spacing = max(spacings[-1])
                 spacings_for_nnunet.append((max_spacing * 999, *list(spacings[-1])[::-1]))
             elif ndim == 3:
-                # -- MULTICLASS-ADAPTION --
+                # -- MULTILABEL-ADAPTION --
                 # use the actual dimensionality and decide based on whether the image is multichannel
                 if not multichannel:
                     # single modality 3D, as in original nnunet
@@ -72,7 +72,7 @@ class SimpleITKIO(BaseReaderWriter):
                 else:
                     # multiple modalities in one file
                     spacings_for_nnunet.append(list(spacings[-1])[::-1][1:])
-                # -- MULTICLASS-ADAPTION END --
+                # -- MULTILABEL-ADAPTION END --
             else:
                 raise RuntimeError(f"Unexpected number of dimensions: {ndim} in file {f}")
 
@@ -119,7 +119,7 @@ class SimpleITKIO(BaseReaderWriter):
             raise RuntimeError()
 
 
-        # -- MULTICLASS-ADAPTION --
+        # -- MULTILABEL-ADAPTION --
         # check consistent multichannel use
         if not self._check_all_same(multichannels):
             print('ERROR! Images are partially multichannel, this must be consistent!')
@@ -144,11 +144,11 @@ class SimpleITKIO(BaseReaderWriter):
             'spacing': spacings_for_nnunet[0],
             'multichannel': multichannels[0]
         }
-        # -- MULTICLASS-ADAPTION END --
+        # -- MULTILABEL-ADAPTION END --
         return np.vstack(images, dtype=np.float32, casting='unsafe'), dict
 
     def read_seg(self, seg_fname: str) -> Tuple[np.ndarray, dict]:
-        # -- MULTICLASS-ADAPTION --
+        # -- MULTILABEL-ADAPTION --
         # check the type and prepend a background channel
         seg, dict = self.read_images((seg_fname, ))
         multichannel = dict['multichannel']
@@ -156,10 +156,10 @@ class SimpleITKIO(BaseReaderWriter):
             seg = (seg > 0.5).astype(np.float32)
             seg = np.concatenate([np.bitwise_not(np.any(seg, axis=0))[np.newaxis], seg], axis=0).astype(seg.dtype)
         return seg, dict
-        # -- MULTICLASS-ADAPTION END --
+        # -- MULTILABEL-ADAPTION END --
 
     def write_seg(self, seg: np.ndarray, output_fname: str, properties: dict) -> None:
-        # -- MULTICLASS-ADAPTION --
+        # -- MULTILABEL-ADAPTION --
         # support multichannel segmentations
         multichannel = seg.shape[0] > 1
         ndim = seg.ndim-1 if multichannel else seg.ndim
@@ -173,7 +173,7 @@ class SimpleITKIO(BaseReaderWriter):
         if multichannel:
             seg = np.moveaxis(seg, 0, -1)
         itk_image = sitk.GetImageFromArray(seg.astype(np.uint8 if np.max(seg) < 255 else np.uint16, copy=False), isVector=multichannel)
-        # -- MULTICLASS-ADAPTION END --
+        # -- MULTILABEL-ADAPTION END --
 
         itk_image.SetSpacing(properties['sitk_stuff']['spacing'])
         itk_image.SetOrigin(properties['sitk_stuff']['origin'])

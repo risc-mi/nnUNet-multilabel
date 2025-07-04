@@ -1,28 +1,65 @@
 # nnU-Net Multi-Label
 
+<<<<<<< Updated upstream
 This fork of nnU-Net contains adaptions to allow multi-label training and inference using nnu-Net.
+=======
+This fork of nnU-Net contains adaptions to allow multi-class training and inference using nnu-Net.
+Multi-label training has been tested with 2D data only, using SimpleITK as the reader/writer for NRRD files.
+
+We used the modified nnU-Net in our work on TotalSegmentator 2D (TS2D).
+
+Check out [TotalSegmentator 2D (TS2D)](https://github.com/risc-mi/totalsegmentator2D)
+
+> Note: Only the dataloader for SimpleITK (simpleitk_reader_writer.py) has been adapted. Other loaders may not support multi-channel images.
+
+> Note: As of now, the adaptions have been tested for 2D only with: nnUNetTrainer, nnUNetTrainerDA5, nnUNetPlans, ExperimentPlanner, DefaultPreprocessor, DatasetFingerprintExtractor.
+
+> Note: As of now, evaluation of multi-label segmentations is not supported.
+>>>>>>> Stashed changes
 
 ## Usage
 
-Instead of labelmap or binary segmentation labels, simply use multi-channel labels instead.
-Therefore, the last dimension of the numpy data should contain a channel for each label (e.g., 256x256x3 for 3 labels).
-You can verify the structure of your data using SimpleITK.ReadImage, which automatically detects components and reports them through the method GetNumberOfComponents().
+To activate multi-label training, add `"multilabel": true` to your `dataset.json` file.  
 
-`Note, that only the dataloader for SimpleITK (simpleitk_reader_writer.py) has been adapted. Other loaders may not support multi-channel images.`
+Regarding the dataset, use multi-channel NRRD format for your label images - the format is supported natively by ITK/SimpleITK.
+When viewing the data with NumPy, the array should contain one channel per label (e.g., `256x256x3` for 256x256 image with 3 labels).  
+You can verify the structure of your data using `SimpleITK.ReadImage`, which automatically detects channels (also called components) and reports them through the method `GetNumberOfComponents()`.
 
-Make sure, the labels in the Dataset.json match the channel indices of your label images.
-Do NOT provide a background channel for index 0, as it will be prepended automatically during preprocessing.
-Therefore, label value 1 will be mapped to channel 0, resp. segmentation[label-1, ...].
+Ensure that the labels in the `dataset.json` match the channel indices of your label images.  
+Specifically, label value `1` will be mapped to channel index `0` of your image, i.e., `segmentation[label - 1, ...]`.  
+Label value `0` must be set as the background channel, which is automatically prepended during preprocessing — do not include it in the image data.
 
-Adaptions in code have been marked with 'MULTICHANNEL-ADAPTION'.
+Example dataset.json:
+```
+{
+    "name": "MyDataset",
+    "description": "A dataset with multi-label segmentation.",
+    "tensorImageSize": "2D",
+    "channel_names": { "0": "XR" },
+ 
+    "multilabel": true,
+    "labels": {
+        "0": "background",
+        "1": "label1",
+        "2": "label2"
+    },
+    "numTraining": 1000,
+    "numTest": 100,
+    "file_ending": ".nrrd"
+}
+```
+
+Modification to the original nnU-Net code have been marked with `MULTICHANNEL-ADAPTION`.
 Note, that in code, the segmentation/slice is structured as [ch, slice, x, y], i.e., for 2D [ch, 1, x, y].
-The adaptions have been tested for 2D only with: nnUNetTrainer, nnUNetPlans, ExperimentPlanner, DefaultPreprocessor, DatasetFingerprintExtractor.
 
-Note: for now, nnUNetTrainer has been adapted only, setting a fixed multiclass = True for the label_manager.
-This should ideally be inferred automatically and the adaptions be transferred to the other trainers.
+## Attribution
+
+This project is a fork of [nnU-Net](https://github.com/MIC-DKFZ/nnUNet).
+Original license and credits belong to the original authors. See [LICENSE](./LICENSE) for details.
 
 ---
-### Original repository readme
+
+> 📄 **Original `nnU-Net` README.md file below**
 
 ---
 

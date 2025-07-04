@@ -392,7 +392,7 @@ class nnUNetTrainer(object):
             self.oversample_foreground_percent = oversample_percent
 
     def _build_loss(self):
-        if self.label_manager.has_regions or self.label_manager.multiclass:
+        if self.label_manager.has_regions or self.label_manager.multilabel:
             loss = DC_and_BCE_loss({},
                                    {'batch_dice': self.configuration_manager.batch_dice,
                                     'do_bg': True, 'smooth': 1e-5, 'ddp': self.is_ddp},
@@ -1048,8 +1048,8 @@ class nnUNetTrainer(object):
         axes = [0] + list(range(2, output.ndim))
 
 
-        # -- MULTICLASS-ADAPTION --
-        if self.label_manager.has_regions or self.label_manager.multiclass:
+        # -- MULTILABEL-ADAPTION --
+        if self.label_manager.has_regions or self.label_manager.multilabel:
             predicted_segmentation_onehot = (torch.sigmoid(output) > 0.5).long()
         else:
             # no need for softmax
@@ -1059,7 +1059,7 @@ class nnUNetTrainer(object):
             del output_seg
 
         if self.label_manager.has_ignore_label:
-            if not (self.label_manager.has_regions or self.label_manager.multiclass):
+            if not (self.label_manager.has_regions or self.label_manager.multilabel):
                 mask = (target != self.label_manager.ignore_label).float()
                 # CAREFUL that you don't rely on target after this line!
                 target[target == self.label_manager.ignore_label] = 0
@@ -1072,7 +1072,7 @@ class nnUNetTrainer(object):
                 target = target[:, :-1]
         else:
             mask = None
-        # -- MULTICLASS-ADAPTION END --
+        # -- MULTILABEL-ADAPTION END --
 
         tp, fp, fn, _ = get_tp_fp_fn_tn(predicted_segmentation_onehot, target, axes=axes, mask=mask)
 
@@ -1080,8 +1080,8 @@ class nnUNetTrainer(object):
         fp_hard = fp.detach().cpu().numpy()
         fn_hard = fn.detach().cpu().numpy()
 
-        # -- MULTICLASS-ADAPTION --
-        if not (self.label_manager.has_regions or self.label_manager.multiclass):
+        # -- MULTILABEL-ADAPTION --
+        if not (self.label_manager.has_regions or self.label_manager.multilabel):
             # if we train with regions all segmentation heads predict some kind of foreground. In conventional
             # (softmax training) there needs to be one output for the background. We are not interested in the
             # background Dice
@@ -1089,7 +1089,7 @@ class nnUNetTrainer(object):
             tp_hard = tp_hard[1:]
             fp_hard = fp_hard[1:]
             fn_hard = fn_hard[1:]
-        # -- MULTICLASS-ADAPTION END --
+        # -- MULTILABEL-ADAPTION END --
 
         return {'loss': l.detach().cpu().numpy(), 'tp_hard': tp_hard, 'fp_hard': fp_hard, 'fn_hard': fn_hard}
 
@@ -1351,7 +1351,7 @@ class nnUNetTrainer(object):
             dist.barrier()
 
         if self.local_rank == 0:
-            # -- MULTICLASS-ADAPTION --
+            # -- MULTILABEL-ADAPTION --
             metrics = compute_metrics_on_folder(join(self.preprocessed_dataset_folder_base, 'gt_segmentations'),
                                                 validation_output_folder,
                                                 join(validation_output_folder, 'summary.json'),
@@ -1362,7 +1362,7 @@ class nnUNetTrainer(object):
                                                 self.label_manager.ignore_label, chill=True,
                                                 num_processes=default_num_processes * dist.get_world_size() if
                                                 self.is_ddp else default_num_processes)
-            # -- MULTICLASS-ADAPTION END --
+            # -- MULTILABEL-ADAPTION END --
             self.print_to_log_file("Validation complete", also_print_to_console=True)
             self.print_to_log_file("Mean Validation Dice: ", (metrics['foreground_mean']["Dice"]),
                                    also_print_to_console=True)

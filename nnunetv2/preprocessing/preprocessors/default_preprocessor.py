@@ -109,7 +109,7 @@ class DefaultPreprocessor(object):
             # no need to filter background in regions because it is already filtered in handle_labels
             # print(all_labels, regions)
 
-            # -- MULTICLASS-ADAPTION --
+            # -- MULTILABEL-ADAPTION --
             # check if there are multiple channels in the segmentation image
             # if so run the sample the foreground locations for each channel separately
             multichannel = seg.shape[0] > 1
@@ -121,7 +121,7 @@ class DefaultPreprocessor(object):
             else:
                 properties['class_locations'] = self._sample_foreground_locations(seg, collect_for_this,
                                                                                        verbose=self.verbose)
-            # -- MULTICLASS-ADAPTION END --
+            # -- MULTILABEL-ADAPTION END --
             seg = self.modify_seg_fn(seg, plans_manager, dataset_json, configuration_manager)
         if np.max(seg) > 127:
             seg = seg.astype(np.int16)

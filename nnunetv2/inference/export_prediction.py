@@ -41,13 +41,13 @@ def convert_predicted_logits_to_segmentation_with_correct_shape(predicted_logits
         segmentation = label_manager.convert_probabilities_to_segmentation(predicted_probabilities)
     del predicted_logits
 
-    # -- MULTICLASS-ADAPTION --
+    # -- MULTILABEL-ADAPTION --
     # return a multichannel prediction
     target_shape = properties_dict['shape_before_cropping']
     slicer = bounding_box_to_slice(properties_dict['bbox_used_for_cropping'])
     transpose_segmentation = plans_manager.transpose_backward
     transpose_probabilities = [0] + [i + 1 for i in transpose_segmentation]
-    if label_manager.multiclass:
+    if label_manager.multilabel:
         target_shape = (segmentation.shape[0], ) + properties_dict['shape_before_cropping']
         slicer = (slice(None), ) + slicer
         transpose_segmentation = transpose_probabilities
@@ -81,7 +81,7 @@ def convert_predicted_logits_to_segmentation_with_correct_shape(predicted_logits
         torch.set_num_threads(old_threads)
         return segmentation_reverted_cropping
 
-    # -- MULTICLASS-ADAPTION END --
+    # -- MULTILABEL-ADAPTION END --
 
 
 def export_prediction_from_logits(predicted_array_or_file: Union[np.ndarray, torch.Tensor], properties_dict: dict,
