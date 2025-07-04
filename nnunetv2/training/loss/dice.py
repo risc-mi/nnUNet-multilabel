@@ -145,10 +145,12 @@ def get_tp_fp_fn_tn(net_output, gt, axes=None, mask=None, square=False):
             y_onehot = torch.zeros(net_output.shape, device=net_output.device, dtype=torch.bool)
             y_onehot.scatter_(1, gt.long(), 1)
 
+    # -- MULTICLASS-ADAPTION --
     tp = net_output * y_onehot
-    fp = net_output * (~y_onehot)
+    fp = net_output * (torch.logical_not(y_onehot))
     fn = (1 - net_output) * y_onehot
-    tn = (1 - net_output) * (~y_onehot)
+    tn = (1 - net_output) * (torch.logical_not(y_onehot))
+    # -- MULTICLASS-ADAPTION END --
 
     if mask is not None:
         with torch.no_grad():

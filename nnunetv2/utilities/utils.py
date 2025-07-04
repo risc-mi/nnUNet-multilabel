@@ -50,8 +50,16 @@ def create_lists_from_splitted_dataset_folder(folder: str, file_ending: str, ide
     list_of_lists = []
 
     params_list = [(folder, files, file_ending, f) for f in identifiers]
-    with Pool(processes=num_processes) as pool:
-        list_of_lists = pool.starmap(create_paths_fn, params_list)
+
+    if num_processes > 1:
+        # for reasons unknown, this performs beyond poorly on windows,
+        # like several seconds for something that should take milliseconds
+        # it might be better to run this code with 1 process instead
+        with Pool(processes=num_processes) as pool:
+            list_of_lists = pool.starmap(create_paths_fn, params_list)
+    else:
+        # don't do multiprocessing if the process limit is 1
+        list_of_lists = list(create_paths_fn(*param) for param in params_list)
         
     return list_of_lists
 

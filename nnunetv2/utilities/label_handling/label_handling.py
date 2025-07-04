@@ -20,11 +20,22 @@ if TYPE_CHECKING:
 
 class LabelManager(object):
     def __init__(self, label_dict: dict, regions_class_order: Union[List[int], None], force_use_labels: bool = False,
-                 inference_nonlin=None):
+                 inference_nonlin=None,
+                 # -- MULTICLASS-ADAPTION --
+                 multiclass=False
+                 # -- MULTICLASS-ADAPTION END --
+                 ):
         self._sanity_check(label_dict)
         self.label_dict = label_dict
         self.regions_class_order = regions_class_order
         self._force_use_labels = force_use_labels
+
+        # -- MULTICLASS-ADAPTION --
+        self.multiclass = multiclass
+        if self.multiclass:
+            #print('Trainer is running in multiclass mode')
+            assert self.regions_class_order is None, 'multiclass is not compatible with region based training!'
+        # -- MULTICLASS-ADAPTION END --
 
         if force_use_labels:
             self._has_regions = False
@@ -43,10 +54,12 @@ class LabelManager(object):
                                       'label value! It cannot be 0 or in between other labels. ' \
                                       'Sorry bro.'
 
+        # -- MULTICLASS-ADAPTION --
         if inference_nonlin is None:
-            self.inference_nonlin = torch.sigmoid if self.has_regions else softmax_helper_dim0
+            self.inference_nonlin = torch.sigmoid if (self.has_regions or self.multiclass) else softmax_helper_dim0
         else:
             self.inference_nonlin = inference_nonlin
+        # -- MULTICLASS-ADAPTION END --
 
     def _sanity_check(self, label_dict: dict):
         if not 'background' in label_dict.keys():
@@ -175,7 +188,15 @@ class LabelManager(object):
             is_numpy = isinstance(predicted_probabilities, np.ndarray)
             if not is_numpy:
                 predicted_probabilities = predicted_probabilities.numpy()
-            segmentation = predicted_probabilities.argmax(0)
+
+            # -- MULTICLASS-ADAPTION --
+            if self.multiclass:
+                segmentation = predicted_probabilities[1:] > 0.5
+                segmentation[:, predicted_probabilities[0] > 0.5] = 0
+            else:
+                segmentation = predicted_probabilities.argmax(0)
+            # -- MULTICLASS-ADAPTION END --
+
             if not is_numpy:
                 segmentation = torch.from_numpy(segmentation)
 
@@ -186,7 +207,7 @@ class LabelManager(object):
             Union[np.ndarray, torch.Tensor]:
         input_is_numpy = isinstance(predicted_logits, np.ndarray)
         # we can skip this step if we do not have region. Argmax is the same between logits or probabilities
-        if self.has_regions:
+        if self.has_regions or self.multiclass:
             probabilities = self.apply_inference_nonlin(predicted_logits)
         else:
             probabilities = predicted_logits

@@ -1,5 +1,5 @@
 from typing import List, Union, Tuple
-
+from dynamic_network_architectures.building_blocks.helper import get_matching_batchnorm
 import numpy as np
 import torch
 from batchgenerators.dataloading.nondet_multi_threaded_augmenter import NonDetMultiThreadedAugmenter
@@ -33,6 +33,7 @@ from nnunetv2.training.dataloading.data_loader import nnUNetDataLoader
 from nnunetv2.training.loss.dice import get_tp_fp_fn_tn
 from nnunetv2.training.nnUNetTrainer.nnUNetTrainer import nnUNetTrainer
 from nnunetv2.utilities.default_n_proc_DA import get_allowed_n_proc_DA
+from torch import nn
 from nnunetv2.utilities.helpers import dummy_context
 
 
@@ -417,7 +418,8 @@ class nnUNetTrainerDA5(nnUNetTrainer):
         # the following is needed for online evaluation. Fake dice (green line)
         axes = [0] + list(range(2, output.ndim))
 
-        if self.label_manager.has_regions:
+        # -- MULTICLASS-ADAPTION --
+        if self.label_manager.has_regions or self.label_manager.multiclass:
             predicted_segmentation_onehot = (torch.sigmoid(output) > 0.5).long()
         else:
             # no need for softmax
@@ -427,8 +429,8 @@ class nnUNetTrainerDA5(nnUNetTrainer):
             del output_seg
 
         if self.label_manager.has_ignore_label:
-            if not self.label_manager.has_regions:
-                mask = target != self.label_manager.ignore_label
+            if not (self.label_manager.has_regions or self.label_manager.multiclass):
+                mask = (target != self.label_manager.ignore_label).float()
                 # CAREFUL that you don't rely on target after this line!
                 target[target == self.label_manager.ignore_label] = 0
             else:
@@ -440,13 +442,16 @@ class nnUNetTrainerDA5(nnUNetTrainer):
                 target = target[:, :-1].bool()
         else:
             mask = None
+        # -- MULTICLASS-ADAPTION END --
 
         tp, fp, fn, _ = get_tp_fp_fn_tn(predicted_segmentation_onehot, target, axes=axes, mask=mask)
 
         tp_hard = tp.detach().cpu().numpy()
         fp_hard = fp.detach().cpu().numpy()
         fn_hard = fn.detach().cpu().numpy()
-        if not self.label_manager.has_regions:
+
+        # -- MULTICLASS-ADAPTION --
+        if not (self.label_manager.has_regions or self.label_manager.multiclass):
             # if we train with regions all segmentation heads predict some kind of foreground. In conventional
             # (softmax training) there needs tobe one output for the background. We are not interested in the
             # background Dice
@@ -454,8 +459,48 @@ class nnUNetTrainerDA5(nnUNetTrainer):
             tp_hard = tp_hard[1:]
             fp_hard = fp_hard[1:]
             fn_hard = fn_hard[1:]
+        # -- MULTICLASS-ADAPTION END --
 
         return {'loss': l.detach().cpu().numpy(), 'tp_hard': tp_hard, 'fp_hard': fp_hard, 'fn_hard': fn_hard}
+
+
+class nnUNetTrainerDA5BN(nnUNetTrainerDA5):
+    @staticmethod
+    def build_network_architecture(architecture_class_name: str,
+                                   arch_init_kwargs: dict,
+                                   arch_init_kwargs_req_import: Union[List[str], Tuple[str, ...]],
+                                   num_input_channels: int,
+                                   num_output_channels: int,
+                                   enable_deep_supervision: bool = True) -> nn.Module:
+
+        if 'norm_op' not in arch_init_kwargs.keys():
+            raise RuntimeError("'norm_op' not found in arch_init_kwargs. This does not look like an architecture "
+                               "I can hack BN into. This trainer only works with default nnU-Net architectures.")
+
+        from pydoc import locate
+        conv_op = locate(arch_init_kwargs['conv_op'])
+        bn_class = get_matching_batchnorm(conv_op)
+        arch_init_kwargs['norm_op'] = bn_class.__module__ + '.' + bn_class.__name__
+        arch_init_kwargs['norm_op_kwargs'] = {'eps': 1e-5, 'affine': True}
+
+        return nnUNetTrainer.build_network_architecture(architecture_class_name,
+                                                        arch_init_kwargs,
+                                                        arch_init_kwargs_req_import,
+                                                        num_input_channels,
+                                                        num_output_channels, enable_deep_supervision)
+
+
+class nnUNetTrainerDA5BN_250epochs_NoMirroring(nnUNetTrainerDA5BN):
+    def __init__(self, plans: dict, configuration: str, fold: int, dataset_json: dict,
+                 device: torch.device = torch.device('cuda')):
+        super().__init__(plans, configuration, fold, dataset_json, device)
+        self.num_epochs = 250
+
+    def configure_rotation_dummyDA_mirroring_and_inital_patch_size(self):
+        rotation_for_DA, do_dummy_2d_data_aug, initial_patch_size, mirror_axes = super().configure_rotation_dummyDA_mirroring_and_inital_patch_size()
+        mirror_axes = None
+        self.inference_allowed_mirroring_axes = None
+        return rotation_for_DA, do_dummy_2d_data_aug, initial_patch_size, mirror_axes
 
 
 class nnUNetTrainerDA5ord0(nnUNetTrainerDA5):
@@ -907,3 +952,36 @@ class nnUNetTrainerDA5_10epochs(nnUNetTrainerDA5):
                  device: torch.device = torch.device('cuda')):
         super().__init__(plans, configuration, fold, dataset_json, device)
         self.num_epochs = 10
+
+
+class nnUNetTrainerDA5_250epochs_NoMirroring(nnUNetTrainerDA5):
+    def __init__(self, plans: dict, configuration: str, fold: int, dataset_json: dict,
+                 device: torch.device = torch.device('cuda')):
+        super().__init__(plans, configuration, fold, dataset_json, device)
+        self.num_epochs = 250
+
+    def configure_rotation_dummyDA_mirroring_and_inital_patch_size(self):
+        rotation_for_DA, do_dummy_2d_data_aug, initial_patch_size, mirror_axes = super().configure_rotation_dummyDA_mirroring_and_inital_patch_size()
+        mirror_axes = None
+        self.inference_allowed_mirroring_axes = None
+        return rotation_for_DA, do_dummy_2d_data_aug, initial_patch_size, mirror_axes
+
+
+class nnUNetTrainerDA5_500epochs_NoMirroring(nnUNetTrainerDA5):
+    def __init__(self, plans: dict, configuration: str, fold: int, dataset_json: dict,
+                 device: torch.device = torch.device('cuda')):
+        super().__init__(plans, configuration, fold, dataset_json, device)
+        self.num_epochs = 500
+
+    def configure_rotation_dummyDA_mirroring_and_inital_patch_size(self):
+        rotation_for_DA, do_dummy_2d_data_aug, initial_patch_size, mirror_axes = super().configure_rotation_dummyDA_mirroring_and_inital_patch_size()
+        mirror_axes = None
+        self.inference_allowed_mirroring_axes = None
+        return rotation_for_DA, do_dummy_2d_data_aug, initial_patch_size, mirror_axes
+
+
+class nnUNetTrainerDA5_1000epochs_NoMirroring(nnUNetTrainerDA5_250epochs_NoMirroring):
+    def __init__(self, plans: dict, configuration: str, fold: int, dataset_json: dict,
+                 device: torch.device = torch.device('cuda')):
+        super().__init__(plans, configuration, fold, dataset_json, device)
+        self.num_epochs = 1000

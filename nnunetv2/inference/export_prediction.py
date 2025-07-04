@@ -41,10 +41,22 @@ def convert_predicted_logits_to_segmentation_with_correct_shape(predicted_logits
         segmentation = label_manager.convert_probabilities_to_segmentation(predicted_probabilities)
     del predicted_logits
 
+    # -- MULTICLASS-ADAPTION --
+    # return a multichannel prediction
+    target_shape = properties_dict['shape_before_cropping']
+    slicer = bounding_box_to_slice(properties_dict['bbox_used_for_cropping'])
+    transpose_segmentation = plans_manager.transpose_backward
+    transpose_probabilities = [0] + [i + 1 for i in transpose_segmentation]
+    if label_manager.multiclass:
+        target_shape = (segmentation.shape[0], ) + properties_dict['shape_before_cropping']
+        slicer = (slice(None), ) + slicer
+        transpose_segmentation = transpose_probabilities
     # put segmentation in bbox (revert cropping)
-    segmentation_reverted_cropping = np.zeros(properties_dict['shape_before_cropping'],
+    segmentation_reverted_cropping = np.zeros(target_shape,
                                               dtype=np.uint8 if len(label_manager.foreground_labels) < 255 else np.uint16)
     segmentation_reverted_cropping = insert_crop_into_image(segmentation_reverted_cropping, segmentation, properties_dict['bbox_used_for_cropping'])
+
+    segmentation_reverted_cropping[slicer] = segmentation
     del segmentation
 
     # segmentation may be torch.Tensor but we continue with numpy
@@ -52,7 +64,7 @@ def convert_predicted_logits_to_segmentation_with_correct_shape(predicted_logits
         segmentation_reverted_cropping = segmentation_reverted_cropping.cpu().numpy()
 
     # revert transpose
-    segmentation_reverted_cropping = segmentation_reverted_cropping.transpose(plans_manager.transpose_backward)
+    segmentation_reverted_cropping = segmentation_reverted_cropping.transpose(transpose_segmentation)
     if return_probabilities:
         # revert cropping
         predicted_probabilities = label_manager.revert_cropping_on_probabilities(predicted_probabilities,
@@ -62,13 +74,14 @@ def convert_predicted_logits_to_segmentation_with_correct_shape(predicted_logits
                                                                                      'shape_before_cropping'])
         predicted_probabilities = predicted_probabilities.cpu().numpy()
         # revert transpose
-        predicted_probabilities = predicted_probabilities.transpose([0] + [i + 1 for i in
-                                                                           plans_manager.transpose_backward])
+        predicted_probabilities = predicted_probabilities.transpose(transpose_probabilities)
         torch.set_num_threads(old_threads)
         return segmentation_reverted_cropping, predicted_probabilities
     else:
         torch.set_num_threads(old_threads)
         return segmentation_reverted_cropping
+
+    # -- MULTICLASS-ADAPTION END --
 
 
 def export_prediction_from_logits(predicted_array_or_file: Union[np.ndarray, torch.Tensor], properties_dict: dict,

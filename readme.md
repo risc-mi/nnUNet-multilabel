@@ -1,3 +1,31 @@
+# nnU-Net Multiclass
+
+This fork of nnU-Net contains adaptions to allow multi-class training and inference using nnu-Net.
+
+## Usage
+
+Instead of labelmap or binary segmentation labels, simply use multi-channel labels instead.
+Therefore, the last dimension of the numpy data should contain a channel for each label (e.g., 256x256x3 for 3 labels).
+You can verify the structure of your data using SimpleITK.ReadImage, which automatically detects components and reports them through the method GetNumberOfComponents().
+
+`Note, that only the dataloader for SimpleITK (simpleitk_reader_writer.py) has been adapted. Other loaders may not support multi-channel images.`
+
+Make sure, the labels in the Dataset.json match the channel indices of your label images.
+Do NOT provide a background channel for index 0, as it will be prepended automatically during preprocessing.
+Therefore, label value 1 will be mapped to channel 0, resp. segmentation[label-1, ...].
+
+Adaptions in code have been marked with 'MULTICHANNEL-ADAPTION'.
+Note, that in code, the segmentation/slice is structured as [ch, slice, x, y], i.e., for 2D [ch, 1, x, y].
+The adaptions have been tested for 2D only with: nnUNetTrainer, nnUNetPlans, ExperimentPlanner, DefaultPreprocessor, DatasetFingerprintExtractor.
+
+Note: for now, nnUNetTrainer has been adapted only, setting a fixed multiclass = True for the label_manager.
+This should ideally be inferred automatically and the adaptions be transferred to the other trainers.
+
+---
+### Original repository readme
+
+---
+
 # Welcome to the new nnU-Net!
 
 Click [here](https://github.com/MIC-DKFZ/nnUNet/tree/nnunetv1) if you were looking for the old one instead.

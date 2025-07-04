@@ -32,10 +32,17 @@ def crop_to_nonzero(data, seg=None, nonzero_label=-1):
     slicer = (slice(None), ) + slicer
     data = data[slicer]
     if seg is not None:
+        # -- MULTICLASS-ADAPTION --
+        # handle cropping of multichannel segmentations
+        multiclass = seg.shape[0] > 1
+        if multiclass:
+            slicer = (slice(None), slice(None)) + slicer[2:]
+        # -- MULTICLASS-ADAPTION END --
         seg = seg[slicer]
         seg[(seg == 0) & (~nonzero_mask)] = nonzero_label
     else:
         seg = np.where(nonzero_mask, np.int8(0), np.int8(nonzero_label))
+
     return data, seg, bbox
 
 

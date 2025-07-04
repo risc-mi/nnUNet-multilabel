@@ -103,7 +103,7 @@ def resample_data_or_seg_to_shape(data: Union[torch.Tensor, np.ndarray],
     do_separate_z, axis = determine_do_sep_z_and_axis(force_separate_z, current_spacing, new_spacing,
                                                       separate_z_anisotropy_threshold)
 
-    if data is not None:
+    if data is not None and not is_seg:
         assert data.ndim == 4, "data must be c x y z"
 
     data_reshaped = resample_data_or_seg(data, new_shape, is_seg, axis, order, do_separate_z, order_z=order_z)
