@@ -1,21 +1,17 @@
 # nnU-Net Multi-Label
 
-<<<<<<< Updated upstream
-This fork of nnU-Net contains adaptions to allow multi-label training and inference using nnu-Net.
-=======
 This fork of nnU-Net contains adaptions to allow multi-class training and inference using nnu-Net.
 Multi-label training has been tested with 2D data only, using SimpleITK as the reader/writer for NRRD files.
 
 We used the modified nnU-Net in our work on TotalSegmentator 2D (TS2D).
 
-Check out [TotalSegmentator 2D (TS2D)](https://github.com/risc-mi/totalsegmentator2D)
+Check out [TotalSegmentator 2D (TS2D)](https://github.com/risc-mi/totalsegmentator2D).
 
 > Note: Only the dataloader for SimpleITK (simpleitk_reader_writer.py) has been adapted. Other loaders may not support multi-channel images.
 
 > Note: As of now, the adaptions have been tested for 2D only with: nnUNetTrainer, nnUNetTrainerDA5, nnUNetPlans, ExperimentPlanner, DefaultPreprocessor, DatasetFingerprintExtractor.
 
 > Note: As of now, evaluation of multi-label segmentations is not supported.
->>>>>>> Stashed changes
 
 ## Usage
 
