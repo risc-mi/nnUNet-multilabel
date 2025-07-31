@@ -42,7 +42,16 @@ def convert_predicted_logits_to_segmentation_with_correct_shape(predicted_logits
     del predicted_logits
 
     # put segmentation in bbox (revert cropping)
-    segmentation_reverted_cropping = np.zeros(properties_dict['shape_before_cropping'],
+
+    # -- MULTILABEL-ADAPTION --
+    segmentation_shape = properties_dict['shape_before_cropping']
+    transpose_backwards = plans_manager.transpose_backward
+    if label_manager.multilabel:
+        segmentation_shape = (segmentation.shape[0],) + segmentation_shape
+        transpose_backwards = [0] + list((i+1) for i in plans_manager.transpose_backward)
+    # -- MULTILABEL-ADAPTION END --
+
+    segmentation_reverted_cropping = np.zeros(segmentation_shape,
                                               dtype=np.uint8 if len(label_manager.foreground_labels) < 255 else np.uint16)
     segmentation_reverted_cropping = insert_crop_into_image(segmentation_reverted_cropping, segmentation, properties_dict['bbox_used_for_cropping'])
     del segmentation
@@ -52,7 +61,7 @@ def convert_predicted_logits_to_segmentation_with_correct_shape(predicted_logits
         segmentation_reverted_cropping = segmentation_reverted_cropping.cpu().numpy()
 
     # revert transpose
-    segmentation_reverted_cropping = segmentation_reverted_cropping.transpose(plans_manager.transpose_backward)
+    segmentation_reverted_cropping = segmentation_reverted_cropping.transpose(transpose_backwards)
     if return_probabilities:
         # revert cropping
         predicted_probabilities = label_manager.revert_cropping_on_probabilities(predicted_probabilities,
